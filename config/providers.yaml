@@ -1,0 +1,24 @@
+# Indexer provider choice — fill after ADR
+
+schema_version: 1
+status: undecided
+
+providers:
+  - id: numia
+    kind: vendor
+    notes: Portfolio + history APIs; evaluate Cosmos coverage and ToS
+  - id: mintscan
+    kind: public_api
+    notes: Rate limits; fine for prototypes only
+  - id: subquery
+    kind: self_host
+    notes: Higher ops; full control
+  - id: hybrid_cometbft
+    kind: hybrid
+    notes: "Recommended pattern: indexer history + CometBFT WS realtime"
+
+selected: null
+
+fallback:
+  block_polling: true
+  poll_interval_sec: 15

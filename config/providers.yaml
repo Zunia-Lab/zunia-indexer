@@ -1,24 +1,29 @@
-# Indexer provider choice — fill after ADR
+# Indexer strategy — Accepted: user-scoped LCD cache + realtime subscribed txs
 
 schema_version: 1
-status: undecided
+status: accepted
+selected: user_scoped_lcd_cache
 
 providers:
+  - id: user_scoped_lcd_cache
+    kind: self_host_light
+    notes: >
+      Platform wallets only. First connect 5 txs; DB cap 50.
+      Realtime: CometBFT WS (address-scoped) + LCD poll 60s + local/Vercel queue.
   - id: numia
     kind: vendor
-    notes: Portfolio + history APIs; evaluate Cosmos coverage and ToS
+    notes: Optional later LCD fallback
   - id: mintscan
     kind: public_api
-    notes: Rate limits; fine for prototypes only
+    notes: Prototypes only
   - id: subquery
     kind: self_host
-    notes: Higher ops; full control
+    notes: Rejected for v1 (too heavy)
   - id: hybrid_cometbft
     kind: hybrid
-    notes: "Recommended pattern: indexer history + CometBFT WS realtime"
-
-selected: null
+    notes: Used as realtime companion — subscribed addresses only (ADR-0002)
 
 fallback:
   block_polling: true
-  poll_interval_sec: 15
+  poll_interval_sec: 60
+  poll_subscribed_addresses_only: true

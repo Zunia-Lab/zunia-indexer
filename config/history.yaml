@@ -1,0 +1,46 @@
+# Light tx-history indexer (Accepted)
+
+schema_version: 1
+status: accepted
+strategy: user_scoped_lcd_cache
+
+# Only wallets registered by Zunia clients (extension / mobile / dashboard)
+scope: platform_wallets_only
+
+# Do not ingest full chains or unrelated addresses
+index_all_chains: false
+index_all_addresses: false
+
+history:
+  # First time this wallet is seen on the platform
+  first_connect_limit: 5
+  # Hard cap in DB per (chain_id, address) — older txs dropped
+  max_txs_per_wallet: 50
+  # When user opens history again (not first connect)
+  refresh_page_size: 20
+  # Optional: how far back LCD queries may look (0 = provider default)
+  max_query_limit: 50
+
+store:
+  # memory | sqlite (sqlite when DATABASE_PATH set)
+  driver: memory
+  # Drop inactive wallets that have not refreshed in N days (0 = never)
+  inactive_wallet_ttl_days: 90
+
+source:
+  # Primary: chain LCD REST from registry / config
+  primary: lcd
+  # Optional vendor fallback later (not required for v1)
+  fallback: null
+
+realtime:
+  enabled: true
+  # hybrid = CometBFT WS for subscribed wallets + LCD poll fallback (60s)
+  mode: hybrid
+  poll_subscribed_only: true
+  poll_interval_sec: 60
+  poll_limit_per_wallet: 5
+  queue:
+    topic: zunia-tx-events
+    vercel_when_enabled: true
+    dedupe_by_tx_hash: true

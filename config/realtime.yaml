@@ -1,0 +1,35 @@
+# Realtime for platform wallets only (Accepted)
+
+schema_version: 1
+
+enabled: true
+
+# Never listen to the whole chain — only registered addresses
+subscribe_platform_wallets_only: true
+
+detection:
+  # Prefer CometBFT WS; fall back to LCD poll if WS fails or REALTIME_MODE=poll
+  mode: hybrid # ws | poll | hybrid
+  poll_interval_sec: 60
+  # Max LCD rows checked per subscribed wallet on each poll tick
+  poll_limit_per_wallet: 5
+
+queue:
+  topic: zunia-tx-events
+  # local = in-process (always-on worker). vercel = also publish to Vercel Queues when creds exist
+  drivers:
+    - local
+    - vercel
+  # Idempotency: chainId:txHash (Vercel Queues idempotencyKey)
+  dedupe_by_tx_hash: true
+  retention_seconds: 3600
+
+notify:
+  # Wake-up only — never put amounts or memos in push payloads
+  include_amounts: false
+  include_addresses_in_push: false
+  payload_fields:
+    - chainId
+    - address
+    - txHash
+    - event: "tx_update"

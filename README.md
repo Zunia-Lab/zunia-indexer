@@ -1,26 +1,23 @@
 # zunia-indexer
 
-> Transaction history, balances, staking rewards — **vendor or self-host decision**, not an implementation yet.
+> Light **user-scoped** tx history + realtime for wallets that connect to Zunia.
 
-## Why
+## Stack
 
-RPC alone is too slow/noisy for portfolio + notifications (PRE-DEVELOPMENT §1, §4.3).
+- **Hono** + **Zod** validation, API key auth, rate limit
+- **HistoryStore**: Postgres (Drizzle) when `DATABASE_URL` is set, else memory (dev only)
+- **Realtime**: CometBFT WS + LCD poll on an **always-on container** (Fly/Railway/Render) — [ADR-0003](./docs/adr/0003-realtime-worker-host.md)
+- Optional **Vercel Queues** fan-out for wake-up notifies (not for WS)
 
-## Options (pick via ADR)
+## Run
 
-| Option | Pros | Cons |
-|--------|------|------|
-| Numia / similar | Fast to market | Cost + vendor trust |
-| Mintscan / public APIs | Easy | Rate limits, ToS |
-| SubQuery / self-index | Control | Ops burden |
-| Hybrid | Indexer history + CometBFT WS realtime | Complexity |
-
-**Recommendation from audit:** indexer for history + CometBFT WS for realtime, polling fallback.
-
-## Config
-
-See [`config/providers.yaml`](./config/providers.yaml). Backend consumes `INDEXER_API_URL`.
+```bash
+pnpm install
+pnpm test
+# apply sql/schema.sql then:
+DATABASE_URL=postgres://... pnpm dev
+```
 
 ## License
 
-Apache-2.0 (scaffolding). Vendor SDKs retain their licences.
+Apache-2.0.

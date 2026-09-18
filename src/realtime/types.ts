@@ -15,7 +15,15 @@ export function resolveRpc(
   chainId: string,
   endpoints: RpcEndpoint[] = DEFAULT_RPC_ENDPOINTS,
 ): string | undefined {
-  return endpoints.find((e) => e.chainId === chainId)?.rpc;
+  return resolveRpcEndpoints(chainId, endpoints)[0];
+}
+
+/** All RPC URLs for a chain (primary + failover mirrors). */
+export function resolveRpcEndpoints(
+  chainId: string,
+  endpoints: RpcEndpoint[] = DEFAULT_RPC_ENDPOINTS,
+): string[] {
+  return endpoints.filter((e) => e.chainId === chainId).map((e) => e.rpc);
 }
 
 export function rpcToWebsocketUrl(rpc: string): string {

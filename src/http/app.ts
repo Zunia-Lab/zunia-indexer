@@ -6,6 +6,7 @@ import type { TxHistoryService } from "../service/history.js";
 import type { RealtimeRuntime } from "../realtime/runtime.js";
 import { walletBodySchema } from "./schemas.js";
 import { rateLimit, requireApiKey } from "./middleware.js";
+import { otelStubMiddleware } from "../otel/stub.js";
 
 export function createApp(deps: {
   store: HistoryStore;
@@ -16,6 +17,7 @@ export function createApp(deps: {
 }) {
   const app = new Hono();
 
+  app.use("*", otelStubMiddleware());
   app.use(
     "*",
     rateLimit({ windowMs: 60_000, max: 120 }),

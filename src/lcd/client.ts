@@ -1,3 +1,4 @@
+import { buildTendermintQuery } from "../tendermint-query.js";
 import type { TxRecord } from "../types.js";
 
 interface LcdTxResponse {
@@ -17,6 +18,11 @@ interface LcdTxResponse {
 /**
  * Pull address-filtered history from Cosmos LCD.
  * Only called for platform-registered wallets — never a full-chain crawl.
+ *
+ * Throws TendermintQueryError when the address cannot be a query literal. That
+ * is unreachable through the HTTP boundary (see http/schemas.ts) and through
+ * the poller (SubscriptionRegistry.list drops such rows); it exists so a future
+ * caller that skips both fails loudly instead of widening the query.
  */
 export async function fetchLcdTxs(options: {
   rest: string;
@@ -31,8 +37,8 @@ export async function fetchLcdTxs(options: {
 
   // Recipient + sender queries; merge + dedupe by hash
   const queries = [
-    `transfer.recipient='${address}'`,
-    `message.sender='${address}'`,
+    buildTendermintQuery([{ key: "transfer.recipient", value: address }]),
+    buildTendermintQuery([{ key: "message.sender", value: address }]),
   ];
 
   const collected: TxRecord[] = [];

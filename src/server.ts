@@ -41,9 +41,10 @@ const app = createApp({
 });
 
 const port = Number(process.env.PORT ?? 8787);
-const server = serve({ fetch: app.fetch, port }, () => {
+const hostname = process.env.HOSTNAME ?? "127.0.0.1";
+const server = serve({ fetch: app.fetch, port, hostname }, () => {
   console.log(
-    `zunia-indexer :${port} (first=${config.firstConnectLimit}, max=${config.maxTxsPerWallet}, realtime=${realtime.config.enabled})`,
+    `zunia-indexer ${hostname}:${port} (first=${config.firstConnectLimit}, max=${config.maxTxsPerWallet}, realtime=${realtime.config.enabled})`,
   );
 });
 

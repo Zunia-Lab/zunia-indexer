@@ -18,12 +18,9 @@ export function createApp(deps: {
   const app = new Hono();
 
   app.use("*", otelStubMiddleware());
-  app.use(
-    "*",
-    rateLimit({ windowMs: 60_000, max: 120 }),
-    requireApiKey(deps.apiKey),
-  );
 
+  // Public so nginx, Cloudflare, and the status page can probe it.
+  // Wallet routes below stay behind the API key.
   app.get("/health", async (c) => {
     const wallets = await deps.store.listWallets();
     return c.json({
@@ -36,6 +33,12 @@ export function createApp(deps: {
       maxTxsPerWallet: deps.historyConfig.maxTxsPerWallet,
     });
   });
+
+  app.use(
+    "*",
+    rateLimit({ windowMs: 60_000, max: 120 }),
+    requireApiKey(deps.apiKey),
+  );
 
   app.post(
     "/v1/wallets/history",

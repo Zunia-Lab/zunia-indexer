@@ -30,6 +30,12 @@ export interface WatchedWallet {
   address: string;
   firstSeenAt: string;
   lastRefreshAt?: string;
+  /**
+   * A device's push subscription keeps the wallet watched until then, read or
+   * not. zunia-backend only keeps a hash of the address and cannot renew it;
+   * the app does, through the backend, each time it subscribes again.
+   */
+  watchUntil?: string;
 }
 
 export interface GetHistoryResult {

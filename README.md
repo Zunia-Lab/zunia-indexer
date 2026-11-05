@@ -22,6 +22,22 @@ DATABASE_URL=postgres://... pnpm dev
 
 Schema source of truth: `sql/schema.sql` (mirrored in `drizzle/0000_init.sql` + `src/store/postgres.ts`).
 
+## Push wake-ups
+
+zunia-backend registers each wallet a device subscribes to (`POST /v1/wallets/subscribe` with `{chainId, address}`, headers `x-api-key`, `x-zunia-subscribe-token`, and the device id as `x-zunia-subject`, which gives each device its own quota). Such a wallet stays watched for `INDEXER_PUSH_WATCH_TTL_HOURS` whether or not its history is read, and each new subscribe renews it; the end is stored in `watched_wallets.watch_until` (`drizzle/0001_push_watch.sql`), so it survives a restart.
+
+Each transaction the detectors see for a watched wallet goes to the backend's `POST /internal/tx-events` (`{chainId, address, txHash}`, header `x-zunia-internal-token`), once per wallet and transaction, retried with backoff on a timeout, a 429 or a 5xx. Only a transaction younger than `REALTIME_NOTIFY_MAX_AGE_SEC` is sent: the first poll of a newly watched wallet returns its last few, which are history.
+
+| Variable | Purpose |
+|----------|---------|
+| `INDEXER_SUBSCRIBE_TOKEN` | Comma-separated secrets of 24+ characters accepted as `x-zunia-subscribe-token`. In production, subscribe is closed while it is unset. |
+| `BACKEND_EVENTS_URL` | The backend's intake on this host, `http://127.0.0.1:8788/internal/tx-events`. Never the public hostname: the backend refuses these calls through the proxy. |
+| `BACKEND_EVENTS_TOKEN` | Equal to the backend's `INTERNAL_EVENTS_TOKEN` (32+ characters). Without the URL and the token, wake-ups are only logged (`REALTIME_LOG_NOTIFY=true`). |
+| `INDEXER_PUSH_WATCH_TTL_HOURS` | How long a push subscription keeps a wallet watched without reads. Default 720 (30 days). |
+| `REALTIME_NOTIFY_MAX_AGE_SEC` | Oldest transaction that still wakes anyone. Default 900. |
+
+Callers presenting `INDEXER_API_KEY` get a higher per-minute ceiling (6000 instead of 120): the backend makes one call per wallet and chain for every device.
+
 ## Load test
 
 ```bash

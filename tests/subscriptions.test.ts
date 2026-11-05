@@ -16,6 +16,7 @@ const LIMITS: SubscriptionLimits = {
   maxWalletsPerAnonymousCaller: 1,
   idleTtlMs: 60_000,
   evictionIntervalMs: 1_000,
+  pushWatchTtlMs: 600_000,
 };
 
 test("resolveSubscriber accepts a configured token and scopes the caller id", () => {
@@ -164,6 +165,39 @@ test("list never hands the detectors a row that cannot be a query literal", asyn
   });
   const registry = new SubscriptionRegistry(store, LIMITS, () => now);
   assert.deepEqual(await registry.list(), []);
+});
+
+test("a push subscription keeps its wallet watched past the idle window, then lets it go", async () => {
+  const store = new FakeStore();
+  let clock = Date.parse("2026-01-01T00:00:00.000Z");
+  const registry = new SubscriptionRegistry(store, LIMITS, () => clock);
+  const device = { id: "device-1", authenticated: true };
+
+  await registry.registerPush("osmosis-1", "osmo1push", device);
+  await registry.ensure("cosmoshub-4", "cosmos1read", device);
+
+  clock += 5 * 60_000; // past the 60s idle window, inside the 10 min push watch
+  assert.deepEqual((await registry.list()).map((w) => w.address), ["osmo1push"]);
+
+  clock += 6 * 60_000; // the push watch has ended too
+  assert.deepEqual(await registry.list(), []);
+});
+
+test("subscribing again renews a push watch, and a history read never shortens it", async () => {
+  const store = new FakeStore();
+  let clock = Date.parse("2026-01-01T00:00:00.000Z");
+  const registry = new SubscriptionRegistry(store, LIMITS, () => clock);
+  const device = { id: "device-1", authenticated: true };
+
+  await registry.registerPush("osmosis-1", "osmo1push", device);
+  clock += 8 * 60_000;
+  await registry.registerPush("osmosis-1", "osmo1push", device);
+  const renewed = (await store.getWallet("osmosis-1", "osmo1push"))?.watchUntil;
+  assert.equal(renewed, new Date(clock + LIMITS.pushWatchTtlMs).toISOString());
+
+  clock += 60_000;
+  await registry.ensure("osmosis-1", "osmo1push"); // a history read
+  assert.equal((await store.getWallet("osmosis-1", "osmo1push"))?.watchUntil, renewed);
 });
 
 /** HistoryStore with the deleteWallet the eviction path uses when present. */

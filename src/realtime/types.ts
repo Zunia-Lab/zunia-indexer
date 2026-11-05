@@ -42,6 +42,11 @@ export interface RealtimeConfig {
   pollLimitPerWallet: number;
   queueTopic: string;
   useVercelQueue: boolean;
+  /**
+   * Only a transaction younger than this wakes anyone. The first poll of a
+   * newly watched wallet finds its last few transactions, and they are history.
+   */
+  notifyMaxAgeSec: number;
 }
 
 export function loadRealtimeConfig(): RealtimeConfig {
@@ -53,6 +58,7 @@ export function loadRealtimeConfig(): RealtimeConfig {
     pollLimitPerWallet: Number(process.env.REALTIME_POLL_LIMIT ?? 5) || 5,
     queueTopic: process.env.REALTIME_QUEUE_TOPIC ?? "zunia-tx-events",
     useVercelQueue: process.env.VERCEL_QUEUE_ENABLED === "true",
+    notifyMaxAgeSec: Number(process.env.REALTIME_NOTIFY_MAX_AGE_SEC ?? 900) || 900,
   };
 }
 
@@ -63,6 +69,8 @@ export interface TxDetectedEvent {
   txHash: string;
   detectedAt: string;
   source: "ws" | "poll";
+  /** Block time, when the detector already has it (LCD poll rows). */
+  txTimestamp?: string;
 }
 
 export interface WakeUpNotification {

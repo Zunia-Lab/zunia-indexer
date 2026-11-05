@@ -60,6 +60,7 @@ export class LcdPollDetector {
             txHash: row.txHash,
             detectedAt: new Date().toISOString(),
             source: "poll",
+            ...(row.timestamp ? { txTimestamp: row.timestamp } : {}),
           };
           await this.publisher.publish(event);
         }

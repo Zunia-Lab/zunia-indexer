@@ -15,7 +15,7 @@ export class LocalTxEventQueue implements TxEventPublisher {
   constructor(private readonly handler: TxEventHandler) {}
 
   async publish(event: TxDetectedEvent): Promise<void> {
-    const id = dedupeKey(event);
+    const id = walletEventKey(event);
     if (this.seen.has(id)) return;
     this.seen.add(id);
     // Bound memory of dedupe set
@@ -55,7 +55,7 @@ export class VercelTxEventPublisher implements TxEventPublisher {
     try {
       const mod = await import("@vercel/queue");
       await mod.send(this.topic, event, {
-        idempotencyKey: dedupeKey(event),
+        idempotencyKey: walletEventKey(event),
         retentionSeconds: 3600,
       });
     } catch (err) {
@@ -85,4 +85,15 @@ export class CompositeTxEventPublisher implements TxEventPublisher {
 
 export function dedupeKey(event: Pick<TxDetectedEvent, "chainId" | "txHash">): string {
   return `${event.chainId}:${event.txHash}`;
+}
+
+/**
+ * One wallet's sighting of one transaction. Events are per wallet: when both
+ * sides of a transfer are watched, each must get its own, so chainId:txHash
+ * alone would drop the second.
+ */
+export function walletEventKey(
+  event: Pick<TxDetectedEvent, "chainId" | "address" | "txHash">,
+): string {
+  return `${event.chainId}:${event.address}:${event.txHash}`;
 }

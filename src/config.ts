@@ -98,6 +98,8 @@ export interface SubscriptionLimits {
   idleTtlMs: number;
   /** Lower bound between eviction sweeps. */
   evictionIntervalMs: number;
+  /** How long a push subscription keeps a wallet watched without reads; each subscribe renews it. */
+  pushWatchTtlMs: number;
 }
 
 export const DEFAULT_SUBSCRIPTION_LIMITS: SubscriptionLimits = {
@@ -106,6 +108,7 @@ export const DEFAULT_SUBSCRIPTION_LIMITS: SubscriptionLimits = {
   maxWalletsPerAnonymousCaller: 25,
   idleTtlMs: 72 * 60 * 60 * 1000,
   evictionIntervalMs: 5 * 60 * 1000,
+  pushWatchTtlMs: 30 * 24 * 60 * 60 * 1000,
 };
 
 export function loadSubscriptionLimits(
@@ -125,6 +128,9 @@ export function loadSubscriptionLimits(
       numEnv("INDEXER_WALLET_IDLE_TTL_HOURS", DEFAULT_SUBSCRIPTION_LIMITS.idleTtlMs / 3_600_000) *
       3_600_000,
     evictionIntervalMs: DEFAULT_SUBSCRIPTION_LIMITS.evictionIntervalMs,
+    pushWatchTtlMs:
+      numEnv("INDEXER_PUSH_WATCH_TTL_HOURS", DEFAULT_SUBSCRIPTION_LIMITS.pushWatchTtlMs / 3_600_000) *
+      3_600_000,
     ...overrides,
   };
 }

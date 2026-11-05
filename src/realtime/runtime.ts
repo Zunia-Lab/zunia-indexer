@@ -41,6 +41,7 @@ export function createRealtimeRuntime(options: {
     options.historyConfig,
     lcd,
     options.notify,
+    rt.notifyMaxAgeSec * 1000,
   );
 
   const local = new LocalTxEventQueue((e) => consumer.handle(e));

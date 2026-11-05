@@ -33,5 +33,12 @@ export {
   VercelTxEventPublisher,
   CompositeTxEventPublisher,
   dedupeKey,
+  walletEventKey,
 } from "./realtime/queue.js";
-export { TxEventConsumer } from "./realtime/consumer.js";
+export { TxEventConsumer, DEFAULT_NOTIFY_MAX_AGE_MS } from "./realtime/consumer.js";
+export {
+  BackendEventsNotifier,
+  BACKEND_EVENTS_TOKEN_HEADER,
+  loadBackendEventsConfig,
+  type BackendEventsConfig,
+} from "./realtime/backend-events.js";

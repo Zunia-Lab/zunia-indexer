@@ -6,9 +6,14 @@ import type { TxDetectedEvent, WakeUpNotification } from "./types.js";
 
 export type NotifyWakeUp = (n: WakeUpNotification) => Promise<void> | void;
 
+/** Default for RealtimeConfig.notifyMaxAgeSec. */
+export const DEFAULT_NOTIFY_MAX_AGE_MS = 15 * 60_000;
+
 /**
  * Consumer: enrich one tx via LCD (by hash when possible), cache, trim, wake-up notify.
- * Payload never includes amounts.
+ * Payload never includes amounts. Only a recent transaction wakes anyone: the
+ * first poll of a newly watched wallet returns its last few, and those are
+ * history, not news.
  */
 export class TxEventConsumer {
   constructor(
@@ -16,6 +21,8 @@ export class TxEventConsumer {
     private readonly config: HistoryConfig,
     private readonly endpoints: LcdEndpoint[],
     private readonly notify: NotifyWakeUp = defaultNotify,
+    private readonly notifyMaxAgeMs: number = DEFAULT_NOTIFY_MAX_AGE_MS,
+    private readonly clock: () => number = Date.now,
   ) {}
 
   async handle(event: TxDetectedEvent): Promise<void> {
@@ -26,7 +33,9 @@ export class TxEventConsumer {
         event.txHash,
       );
       if (known) {
-        await this.notify(wakeUp(event));
+        if (this.isRecent(event.txTimestamp ?? event.detectedAt)) {
+          await this.notify(wakeUp(event));
+        }
         return;
       }
     }
@@ -38,7 +47,16 @@ export class TxEventConsumer {
       event.address,
       this.config.maxTxsPerWallet,
     );
-    await this.notify(wakeUp(event));
+    if (this.isRecent(record.timestamp ?? event.txTimestamp ?? event.detectedAt)) {
+      await this.notify(wakeUp(event));
+    }
+  }
+
+  /** A time nobody can read counts as recent: a missed push is worse than a late one. */
+  private isRecent(iso: string | undefined): boolean {
+    const at = iso ? Date.parse(iso) : Number.NaN;
+    if (!Number.isFinite(at)) return true;
+    return this.clock() - at <= this.notifyMaxAgeMs;
   }
 
   private async enrich(event: TxDetectedEvent): Promise<TxRecord> {
@@ -83,7 +101,7 @@ export class TxEventConsumer {
       txHash: event.txHash,
       success: true,
       summary: "transaction",
-      timestamp: event.detectedAt,
+      timestamp: event.txTimestamp ?? event.detectedAt,
     };
   }
 }

@@ -12,6 +12,10 @@ import {
 } from "./index.js";
 import { createApp } from "./http/app.js";
 import { createRealtimeRuntime } from "./realtime/runtime.js";
+import {
+  BackendEventsNotifier,
+  loadBackendEventsConfig,
+} from "./realtime/backend-events.js";
 import { createPostgresStore } from "./store/postgres.js";
 import type { HistoryStore } from "./store/memory.js";
 
@@ -29,7 +33,20 @@ if (databaseUrl) {
 }
 
 const service = new TxHistoryService(store, config, DEFAULT_LCD_ENDPOINTS);
-const realtime = createRealtimeRuntime({ store, historyConfig: config });
+
+// Wake-ups become pushes in zunia-backend. Unset, they are only logged
+// (REALTIME_LOG_NOTIFY=true), as before.
+const backendEvents = loadBackendEventsConfig();
+if (backendEvents) {
+  console.log(`[realtime] wake-ups to ${backendEvents.url}`);
+} else {
+  console.warn("[realtime] BACKEND_EVENTS_URL / BACKEND_EVENTS_TOKEN unset: wake-ups are not delivered");
+}
+const realtime = createRealtimeRuntime({
+  store,
+  historyConfig: config,
+  notify: backendEvents ? new BackendEventsNotifier(backendEvents).notify : undefined,
+});
 realtime.start();
 
 const app = createApp({

@@ -37,6 +37,21 @@ type Attempt = "delivered" | "retry" | "final";
 const MAX_REMEMBERED = 50_000;
 
 /**
+ * An abort signal that fires after `ms`. `AbortSignal.timeout` unrefs its
+ * timer on Node 20 and 22, so a call with nothing else pending lets the
+ * process (or a test) end before the deadline; this timer is ref'd, and
+ * `clear` drops it once the call settles.
+ */
+function deadline(ms: number): { signal: AbortSignal; clear: () => void } {
+  const controller = new AbortController();
+  const timer = setTimeout(
+    () => controller.abort(new DOMException("The operation timed out.", "TimeoutError")),
+    ms,
+  );
+  return { signal: controller.signal, clear: () => clearTimeout(timer) };
+}
+
+/**
  * Delivers each wallet's transaction once. A timeout, a network error, a 429
  * or a 5xx is retried with backoff; any other refusal is final. Never throws:
  * the consumer keeps caching history whatever the backend does.
@@ -80,6 +95,7 @@ export class BackendEventsNotifier {
   };
 
   private async post(wakeUp: WakeUpNotification): Promise<Attempt> {
+    const limit = deadline(this.config.timeoutMs);
     try {
       const res = await this.fetchImpl(this.config.url, {
         method: "POST",
@@ -92,7 +108,7 @@ export class BackendEventsNotifier {
           address: wakeUp.address,
           txHash: wakeUp.txHash,
         }),
-        signal: AbortSignal.timeout(this.config.timeoutMs),
+        signal: limit.signal,
       });
       if (res.ok) return "delivered";
       if (res.status === 408 || res.status === 429 || res.status >= 500) return "retry";
@@ -100,6 +116,8 @@ export class BackendEventsNotifier {
       return "final";
     } catch {
       return "retry";
+    } finally {
+      limit.clear();
     }
   }
 

@@ -19,9 +19,21 @@ export const watchedWallets = pgTable(
     address: text("address").notNull(),
     firstSeenAt: timestamp("first_seen_at", { withTimezone: true }).notNull(),
     lastRefreshAt: timestamp("last_refresh_at", { withTimezone: true }),
+    /** End of the push watch (drizzle/0001_push_watch.sql); null for history-only wallets. */
+    watchUntil: timestamp("watch_until", { withTimezone: true }),
   },
   (t) => [primaryKey({ columns: [t.chainId, t.address] })],
 );
+
+function rowToWallet(row: typeof watchedWallets.$inferSelect): WatchedWallet {
+  return {
+    chainId: row.chainId,
+    address: row.address,
+    firstSeenAt: row.firstSeenAt.toISOString(),
+    lastRefreshAt: row.lastRefreshAt?.toISOString(),
+    watchUntil: row.watchUntil?.toISOString(),
+  };
+}
 
 export const txHistory = pgTable(
   "tx_history",
@@ -57,13 +69,7 @@ export function createPostgresStore(databaseUrl: string): HistoryStore & {
         )
         .limit(1);
       const row = rows[0];
-      if (!row) return undefined;
-      return {
-        chainId: row.chainId,
-        address: row.address,
-        firstSeenAt: row.firstSeenAt.toISOString(),
-        lastRefreshAt: row.lastRefreshAt?.toISOString(),
-      };
+      return row ? rowToWallet(row) : undefined;
     },
 
     async upsertWallet(wallet: WatchedWallet) {
@@ -76,6 +82,7 @@ export function createPostgresStore(databaseUrl: string): HistoryStore & {
           lastRefreshAt: wallet.lastRefreshAt
             ? new Date(wallet.lastRefreshAt)
             : null,
+          watchUntil: wallet.watchUntil ? new Date(wallet.watchUntil) : null,
         })
         .onConflictDoUpdate({
           target: [watchedWallets.chainId, watchedWallets.address],
@@ -83,18 +90,15 @@ export function createPostgresStore(databaseUrl: string): HistoryStore & {
             lastRefreshAt: wallet.lastRefreshAt
               ? new Date(wallet.lastRefreshAt)
               : sql`${watchedWallets.lastRefreshAt}`,
+            // GREATEST skips nulls: a history read never ends a push watch early.
+            watchUntil: sql`GREATEST(${watchedWallets.watchUntil}, excluded.watch_until)`,
           },
         });
     },
 
     async listWallets() {
       const rows = await db.select().from(watchedWallets);
-      return rows.map((row) => ({
-        chainId: row.chainId,
-        address: row.address,
-        firstSeenAt: row.firstSeenAt.toISOString(),
-        lastRefreshAt: row.lastRefreshAt?.toISOString(),
-      }));
+      return rows.map(rowToWallet);
     },
 
     async listTxs(chainId, address, limit) {

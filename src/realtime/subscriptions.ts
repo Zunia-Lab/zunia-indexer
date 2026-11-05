@@ -132,6 +132,7 @@ export class SubscriptionRegistry {
     chainId: string,
     address: string,
     caller: SubscriberIdentity = ANONYMOUS_SUBSCRIBER,
+    options: { watchUntil?: number } = {},
   ): Promise<SubscriptionOutcome> {
     if (!isQuerySafeValue(address) || !isQuerySafeValue(chainId)) {
       return {
@@ -143,9 +144,14 @@ export class SubscriptionRegistry {
 
     const now = this.clock();
     const nowIso = new Date(now).toISOString();
+    const watchUntil = options.watchUntil;
     const existing = await this.store.getWallet(chainId, address);
     if (existing) {
-      await this.store.upsertWallet({ ...existing, lastRefreshAt: nowIso });
+      await this.store.upsertWallet({
+        ...existing,
+        lastRefreshAt: nowIso,
+        watchUntil: laterOf(existing.watchUntil, watchUntil),
+      });
       return { ok: true, created: false };
     }
 
@@ -182,6 +188,7 @@ export class SubscriptionRegistry {
       address,
       firstSeenAt: nowIso,
       lastRefreshAt: nowIso,
+      watchUntil: laterOf(undefined, watchUntil),
     });
     this.recordRegistration(caller.id, walletKey(chainId, address), now);
     return { ok: true, created: true };
@@ -192,11 +199,22 @@ export class SubscriptionRegistry {
     chainId: string,
     address: string,
     caller: SubscriberIdentity,
+    options: { watchUntil?: number } = {},
   ): Promise<void> {
-    const outcome = await this.ensure(chainId, address, caller);
+    const outcome = await this.ensure(chainId, address, caller, options);
     if (!outcome.ok) {
       throw new SubscriptionDeniedError(outcome.reason, outcome.message);
     }
+  }
+
+  /**
+   * register() for a device's push subscription: the wallet stays watched for
+   * pushWatchTtlMs whether or not its history is read, and every call renews it.
+   */
+  async registerPush(chainId: string, address: string, caller: SubscriberIdentity): Promise<void> {
+    await this.register(chainId, address, caller, {
+      watchUntil: this.clock() + this.limits.pushWatchTtlMs,
+    });
   }
 
   /**
@@ -233,6 +251,7 @@ export class SubscriptionRegistry {
   }
 
   private isIdle(wallet: WatchedWallet, now: number): boolean {
+    if (instant(wallet.watchUntil) > now) return false;
     return now - touchedAt(wallet) > this.limits.idleTtlMs;
   }
 
@@ -272,9 +291,18 @@ function isWatchable(wallet: WatchedWallet): boolean {
 }
 
 function touchedAt(wallet: WatchedWallet): number {
-  const raw = wallet.lastRefreshAt ?? wallet.firstSeenAt;
-  const parsed = Date.parse(raw);
+  return instant(wallet.lastRefreshAt ?? wallet.firstSeenAt);
+}
+
+function instant(iso: string | undefined): number {
+  const parsed = iso ? Date.parse(iso) : Number.NaN;
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+/** The later of a stored watch end and a requested one; a renewal never shortens a watch. */
+function laterOf(stored: string | undefined, requested: number | undefined): string | undefined {
+  const end = Math.max(instant(stored), requested ?? 0);
+  return end > 0 ? new Date(end).toISOString() : undefined;
 }
 
 function fingerprint(secret: string): string {

@@ -6,6 +6,8 @@ CREATE TABLE IF NOT EXISTS watched_wallets (
   address    TEXT NOT NULL,
   first_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   last_refresh_at TIMESTAMPTZ,
+  -- End of a push watch: kept watched until then, read or not (drizzle/0001_push_watch.sql).
+  watch_until TIMESTAMPTZ,
   PRIMARY KEY (chain_id, address)
 );
 
